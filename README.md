@@ -292,5 +292,4 @@ GPL v2.0 — See [LICENSE](LICENSE)
 <p align="center">
   <i>⚡ "The fastest 45MB you'll ever deploy"</i>
 </p>
-```
 
