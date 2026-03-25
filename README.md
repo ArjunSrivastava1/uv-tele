@@ -1,6 +1,3 @@
-Perfect! I see your style — clean, visual, badges, clear sections, and that signature gradient header. Let me create a README for the telemetry pipeline that matches this aesthetic and showcases the Rust project properly.
-
-```markdown
 <h1>
   <br>
   <img src="https://raw.githubusercontent.com/ArjunSrivastava1/uv-telemetry/main/assets/telemetry-icon.svg" alt="UV Telemetry" width="100">
