@@ -130,106 +130,6 @@ curl -X POST http://localhost:3000/simulate/stop
 | `GET` | `/stats` | System statistics | Uptime, total events, devices |
 | `POST` | `/simulate/stop` | Graceful shutdown | `{"status":"shutting_down"}` |
 
-### 📊 Analytics Endpoints (PostgreSQL required)
-
-| Method | Endpoint | Description | SQL Pattern |
-|--------|----------|-------------|-------------|
-| `GET` | `/analytics/moving-avg/{device_id}` | Rolling 10-point moving average | Window function |
-| `GET` | `/analytics/trips/{device_id}` | Trip segmentation with CTEs | Common Table Expression |
-| `GET` | `/analytics/percentiles/{device_id}` | Speed percentiles (p50, p95, p99) | `percentile_cont()` |
-| `GET` | `/analytics/time-weighted-avg/{device_id}` | Time-weighted average speed | Weighted aggregation |
-
-## 📊 SQL Analytics Examples
-
-### Moving Average (Window Function)
-```sql
-SELECT 
-    time,
-    speed_kmh,
-    AVG(speed_kmh) OVER (
-        PARTITION BY device_id 
-        ORDER BY time 
-        ROWS BETWEEN 9 PRECEDING AND CURRENT ROW
-    ) as moving_avg_speed
-FROM telemetry_events
-WHERE device_id = 'uv-f77-001'
-LIMIT 100;
-```
-*Smooths sensor noise, reveals actual riding patterns*
-
-### Trip Segmentation (CTE)
-```sql
-WITH speed_threshold AS (
-    SELECT time, speed_kmh,
-        CASE WHEN speed_kmh > 5 THEN 1 ELSE 0 END as is_riding
-    FROM telemetry_events
-),
-trip_groups AS (
-    SELECT *,
-        SUM(CASE WHEN is_riding = 0 THEN 1 ELSE 0 END) 
-            OVER (ORDER BY time) as trip_group
-    FROM speed_threshold
-)
-SELECT 
-    MIN(time) as trip_start,
-    MAX(time) as trip_end,
-    AVG(speed_kmh) as avg_speed,
-    MAX(speed_kmh) as max_speed
-FROM trip_groups
-WHERE is_riding = 1
-GROUP BY trip_group;
-```
-*Automatically detects trips without explicit start/end signals*
-
-### Speed Percentiles
-```sql
-SELECT 
-    percentile_cont(0.50) WITHIN GROUP (ORDER BY speed_kmh) as p50,
-    percentile_cont(0.95) WITHIN GROUP (ORDER BY speed_kmh) as p95,
-    percentile_cont(0.99) WITHIN GROUP (ORDER BY speed_kmh) as p99
-FROM telemetry_events
-WHERE device_id = 'uv-f77-001'
-AND time > NOW() - INTERVAL '24 hours';
-```
-*Identifies extreme riding behavior without outliers distorting averages*
-
-## 🔄 Kafka Migration
-
-The pipeline is designed with Kafka-ready architecture. Enable with feature flag:
-
-```bash
-# Start Kafka cluster
-docker-compose up -d
-
-# Run with Kafka producer/consumer
-cargo run --features kafka
-```
-
-**Migration path:**
-```
-Current: Simulator → Channel → Aggregator
-Future:  Simulator → Kafka → Aggregator (multiple instances)
-```
-
-Benefits with Kafka:
-- Durable message buffer (no data loss on consumer crash)
-- Horizontal scaling (multiple aggregators)
-- Event replay (reprocess historical data)
-- Consumer groups (load balancing)
-
-## 🐳 Docker Deployment
-
-```bash
-# Build image
-docker build -t uv-telemetry .
-
-# Run container
-docker run -p 3000:3000 uv-telemetry
-
-# With PostgreSQL
-docker-compose up -d
-```
-
 ## 🧪 Testing
 
 ```bash
@@ -243,21 +143,12 @@ cargo bench
 cargo tarpaulin
 ```
 
-## 📈 Monitoring
-
-Export Prometheus metrics:
-```bash
-curl http://localhost:3000/metrics/prometheus
-```
-
-Grafana dashboard available in `/grafana/dashboard.json`
-
 ## 🛣️ Roadmap
 
 - [x] Core async pipeline with tokio channels
 - [x] REST API with Axum
-- [x] PostgreSQL/TimescaleDB integration
-- [x] SQL window functions and CTEs
+- [ ] PostgreSQL/TimescaleDB integration
+- [ ] SQL window functions and CTEs
 - [ ] Kafka integration (feature branch)
 - [ ] WebSocket streaming for live dashboards
 - [ ] Kubernetes Helm chart
